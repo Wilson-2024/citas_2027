@@ -1,57 +1,57 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { createContext, useContext, useState, useEffect } from 'react'
+import { supabase, verifyPassword } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else setLoading(false)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else { setProfile(null); setLoading(false) }
-    })
-    return () => subscription.unsubscribe()
+    const stored = sessionStorage.getItem('siri_profile')
+    if (stored) {
+      try { setProfile(JSON.parse(stored)) } catch {}
+    }
+    setLoading(false)
   }, [])
 
-  async function fetchProfile(userId) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    setProfile(data)
-    setLoading(false)
-  }
-
   async function signIn(cedula, password) {
-    const { data: profileData } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('email_auth')
+      .select('*')
       .eq('cedula', cedula)
       .single()
-    if (!profileData?.email_auth) return { error: { message: 'Cédula o contraseña incorrecta.' } }
-    const { error } = await supabase.auth.signInWithPassword({
-      email: profileData.email_auth,
-      password,
-    })
-    return { error }
+
+    if (error || !data) return { error: { message: 'Cédula o contraseña incorrecta.' } }
+
+    const valid = await verifyPassword(password, data.password_hash)
+    if (!valid) return { error: { message: 'Cédula o contraseña incorrecta.' } }
+
+    sessionStorage.setItem('siri_profile', JSON.stringify(data))
+    setProfile(data)
+    return { error: null, profile: data }
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    sessionStorage.removeItem('siri_profile')
     setProfile(null)
   }
 
+  async function refreshProfile() {
+    if (!profile) return
+    const { data } = await supabase.from('profiles').select('*').eq('id', profile.id).single()
+    if (data) {
+      sessionStorage.setItem('siri_profile', JSON.stringify(data))
+      setProfile(data)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, fetchProfile }}>
+    <AuthContext.Provider value={{ profile, loading, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
 export const useAuth = () => useContext(AuthContext)
+

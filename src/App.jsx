@@ -14,8 +14,7 @@ function ProtectedAgent({ children }) {
   const { profile, loading } = useAuth()
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontFamily:'sans-serif',color:'#888'}}>Cargando...</div>
   if (!profile) return <Navigate to="/login" />
-  if (profile.status === 'pending') return <Navigate to="/pendiente" />
-  if (!profile.is_active) return <Navigate to="/pendiente" />
+  if (profile.status === 'pending' || !profile.is_active) return <Navigate to="/pendiente" />
   if (!profile.security_questions_set) return <Navigate to="/setup-preguntas" />
   if (profile.role !== 'agent') return <Navigate to="/login" />
   return children
@@ -45,3 +44,4 @@ export default function App() {
     </Routes>
   )
 }
+

@@ -1,77 +1,47 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
-import { AuthProvider, useAuth } from './contexts/AuthContext'
-import ProtectedRoute from './components/layout/ProtectedRoute'
-import LoadingScreen from './components/ui/LoadingScreen'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from './context/AuthContext'
+import Home from './pages/Home'
+import Cita from './pages/Cita'
+import Login from './pages/Login'
+import Registro from './pages/Registro'
+import Pendiente from './pages/Pendiente'
+import SetupPreguntas from './pages/SetupPreguntas'
+import RecuperarPassword from './pages/RecuperarPassword'
+import Agente from './pages/Agente'
+import Admin from './pages/Admin'
 
-// Pages
-import HomePage from './pages/HomePage'
-import CitaPage from './pages/CitaPage'
-import { LoginPage, RegisterPage, PendientePage } from './pages/AuthPages'
-import DashboardAgente from './pages/DashboardAgente'
-import PanelAdmin from './pages/PanelAdmin'
-
-// Smart redirect: si ya está logueado, va al dashboard correcto
-function AuthRedirect({ children }) {
-  const { session, profile, loading, isApproved } = useAuth()
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    if (loading || !session || !profile) return
-    if (!isApproved) {
-      navigate('/pendiente', { replace: true })
-      return
-    }
-    if (profile.role === 'admin') navigate('/admin', { replace: true })
-    else if (profile.role === 'agent') navigate('/agente', { replace: true })
-  }, [session, profile, loading, isApproved, navigate])
-
-  if (loading) return <LoadingScreen />
+function ProtectedAgent({ children }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontFamily:'sans-serif',color:'#888'}}>Cargando...</div>
+  if (!profile) return <Navigate to="/login" />
+  if (profile.status === 'pending') return <Navigate to="/pendiente" />
+  if (!profile.is_active) return <Navigate to="/pendiente" />
+  if (!profile.security_questions_set) return <Navigate to="/setup-preguntas" />
+  if (profile.role !== 'agent') return <Navigate to="/login" />
   return children
 }
 
-function AppRoutes() {
-  return (
-    <Routes>
-      {/* ── Públicas ── */}
-      <Route path="/"      element={<HomePage />} />
-      <Route path="/cita"  element={<CitaPage />} />
-
-      {/* ── Auth ── */}
-      <Route path="/login"    element={<AuthRedirect><LoginPage /></AuthRedirect>} />
-      <Route path="/registro" element={<RegisterPage />} />
-      <Route path="/pendiente" element={
-        <ProtectedRoute requireApproved={false}>
-          <PendientePage />
-        </ProtectedRoute>
-      } />
-
-      {/* ── Agente ── */}
-      <Route path="/agente" element={
-        <ProtectedRoute requireRole="agent" requireApproved={true}>
-          <DashboardAgente />
-        </ProtectedRoute>
-      } />
-
-      {/* ── Admin ── */}
-      <Route path="/admin" element={
-        <ProtectedRoute requireRole="admin" requireApproved={true}>
-          <PanelAdmin />
-        </ProtectedRoute>
-      } />
-
-      {/* ── Fallback ── */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
+function ProtectedAdmin({ children }) {
+  const { profile, loading } = useAuth()
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontFamily:'sans-serif',color:'#888'}}>Cargando...</div>
+  if (!profile) return <Navigate to="/login" />
+  if (profile.role !== 'admin') return <Navigate to="/login" />
+  return children
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/cita" element={<Cita />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/registro" element={<Registro />} />
+      <Route path="/pendiente" element={<Pendiente />} />
+      <Route path="/setup-preguntas" element={<SetupPreguntas />} />
+      <Route path="/recuperar-password" element={<RecuperarPassword />} />
+      <Route path="/agente" element={<ProtectedAgent><Agente /></ProtectedAgent>} />
+      <Route path="/admin" element={<ProtectedAdmin><Admin /></ProtectedAdmin>} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   )
 }
